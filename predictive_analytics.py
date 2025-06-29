@@ -2,12 +2,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
 @st.cache_data
 def prepare_prediction_data(df):
@@ -52,16 +53,34 @@ def prepare_prediction_data(df):
 @st.cache_resource
 def train_models(X1_train, y1_train, X2_train, y2_train):
     # Models for treatment prediction
+    lr_treatment = LogisticRegression(max_iter=1000, random_state=42)
     rf_treatment = RandomForestClassifier(n_estimators=100, random_state=42)
+    xgb_treatment = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+    
+    lr_treatment.fit(X1_train, y1_train)
     rf_treatment.fit(X1_train, y1_train)
+    xgb_treatment.fit(X1_train, y1_train)
     
     # Models for work interference prediction
+    lr_interfere = LogisticRegression(max_iter=1000, random_state=42)
     rf_interfere = RandomForestClassifier(n_estimators=100, random_state=42)
+    xgb_interfere = XGBClassifier(use_label_encoder=False, eval_metric='mlogloss', random_state=42)
+    
+    lr_interfere.fit(X2_train, y2_train)
     rf_interfere.fit(X2_train, y2_train)
+    xgb_interfere.fit(X2_train, y2_train)
     
     return {
-        "treatment": rf_treatment,
-        "interfere": rf_interfere
+        "treatment": {
+            "Logistic Regression": lr_treatment,
+            "Random Forest": rf_treatment,
+            "XGBoost": xgb_treatment
+        },
+        "interfere": {
+            "Logistic Regression": lr_interfere,
+            "Random Forest": rf_interfere,
+            "XGBoost": xgb_interfere
+        }
     }
 
 def predict_treatment(model, input_data, feature_columns, scaler):
@@ -107,6 +126,38 @@ def predict_work_interference(model, input_data, feature_columns, scaler, target
     
     return prediction_label, probability
 
+def evaluate_model(model, X_test, y_test, task_type="binary"):
+    """Evaluate model performance and return metrics"""
+    y_pred = model.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    
+    if task_type == "binary":
+        f1 = f1_score(y_test, y_pred)
+        return accuracy, f1
+    else:  # multi-class
+        f1 = f1_score(y_test, y_pred, average='weighted')
+        return accuracy, f1
+
+def plot_feature_importance(model, feature_columns, model_type):
+    """Plot feature importance based on model type"""
+    features = [f.replace('_', ' ').title() for f in feature_columns]
+    
+    if model_type == "Logistic Regression":
+        # For binary classification
+        if len(model.coef_.shape) == 1:
+            importances = np.abs(model.coef_[0])
+        else:  # For multi-class
+            importances = np.mean(np.abs(model.coef_), axis=0)
+    else:
+        importances = model.feature_importances_
+    
+    # Normalize importances
+    importances = 100.0 * (importances / importances.max())
+    feature_imp = pd.DataFrame({'Feature': features, 'Importance': importances})
+    feature_imp = feature_imp.sort_values('Importance', ascending=False).head(5)
+    
+    return feature_imp
+
 def show(df):
     st.header("🤖 Mental Health Risk Assessment")
     st.markdown("""
@@ -126,6 +177,18 @@ def show(df):
     
     with tab1:
         st.subheader("Predict Likelihood of Seeking Treatment")
+        
+        # Model selection
+        model_choice_treatment = st.selectbox(
+            "Select Model",
+            ["Logistic Regression", "Random Forest", "XGBoost"],
+            key="model_treatment"
+        )
+        
+        selected_model = models["treatment"][model_choice_treatment]
+        
+        # Evaluate selected model
+        accuracy, f1 = evaluate_model(selected_model, X1_test, y1_test, "binary")
         
         with st.expander("💼 Employee Information"):
             col1, col2 = st.columns(2)
@@ -167,7 +230,7 @@ def show(df):
         
         if st.button("Predict Treatment Seeking", type="primary"):
             prediction, probability = predict_treatment(
-                models["treatment"], 
+                selected_model, 
                 input_data, 
                 feature_columns, 
                 scaler1
@@ -181,26 +244,38 @@ def show(df):
                 st.warning("### This employee is UNLIKELY to seek treatment for mental health issues")
                 st.metric("Probability", f"{probability[0]*100:.1f}%")
             
+            # Show model performance
+            st.subheader("Model Performance")
+            col_perf1, col_perf2 = st.columns(2)
+            with col_perf1:
+                st.metric("Accuracy", f"{accuracy*100:.1f}%")
+            with col_perf2:
+                st.metric("F1 Score", f"{f1:.3f}")
+            
             # Show feature importance
             st.subheader("Key Influencing Factors")
-            model = models["treatment"]
-            importances = model.feature_importances_
-            features = feature_columns
-            feature_imp = pd.DataFrame({'Feature': features, 'Importance': importances})
-            feature_imp = feature_imp.sort_values('Importance', ascending=False).head(5)
-            
-            # Simplify feature names for display
-            feature_imp['Feature'] = feature_imp['Feature'].str.replace('_', ' ').str.title()
+            feature_imp = plot_feature_importance(selected_model, feature_columns, model_choice_treatment)
             
             # Display as horizontal bar chart
             st.bar_chart(feature_imp.set_index('Feature'))
             
-            st.caption("Based on current model accuracy: "
-                      f"{accuracy_score(y1_test, model.predict(X1_test))*100:.1f}%")
+            st.caption(f"Based on {model_choice_treatment} model")
     
     with tab2:
         st.subheader("Predict Work Interference from Mental Health")
         st.info("Predict how much mental health issues might interfere with work performance")
+        
+        # Model selection
+        model_choice_interfere = st.selectbox(
+            "Select Model",
+            ["Logistic Regression", "Random Forest", "XGBoost"],
+            key="model_interfere"
+        )
+        
+        selected_model = models["interfere"][model_choice_interfere]
+        
+        # Evaluate selected model
+        accuracy, f1 = evaluate_model(selected_model, X2_test, y2_test, "multi")
         
         with st.expander("💼 Employee Information"):
             col1, col2 = st.columns(2)
@@ -242,7 +317,7 @@ def show(df):
         
         if st.button("Predict Work Interference", type="primary"):
             prediction, probability = predict_work_interference(
-                models["interfere"], 
+                selected_model, 
                 input_data, 
                 feature_columns, 
                 scaler2,
@@ -277,19 +352,19 @@ def show(df):
             })
             st.bar_chart(prob_df.set_index("Interference Level"))
             
+            # Show model performance
+            st.subheader("Model Performance")
+            col_perf1, col_perf2 = st.columns(2)
+            with col_perf1:
+                st.metric("Accuracy", f"{accuracy*100:.1f}%")
+            with col_perf2:
+                st.metric("F1 Score", f"{f1:.3f}")
+            
             # Show key factors
             st.subheader("Key Influencing Factors")
-            model = models["interfere"]
-            importances = model.feature_importances_
-            features = feature_columns
-            feature_imp = pd.DataFrame({'Feature': features, 'Importance': importances})
-            feature_imp = feature_imp.sort_values('Importance', ascending=False).head(5)
-            
-            # Simplify feature names for display
-            feature_imp['Feature'] = feature_imp['Feature'].str.replace('_', ' ').str.title()
+            feature_imp = plot_feature_importance(selected_model, feature_columns, model_choice_interfere)
             
             # Display as horizontal bar chart
             st.bar_chart(feature_imp.set_index('Feature'))
             
-            st.caption("Based on current model accuracy: "
-                      f"{accuracy_score(y2_test, model.predict(X2_test))*100:.1f}%")
+            st.caption(f"Based on {model_choice_interfere} model")
