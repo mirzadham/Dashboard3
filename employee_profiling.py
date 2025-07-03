@@ -35,7 +35,7 @@ def show(df):
     
     # Perform clustering
     df_cluster = perform_clustering(df)
-    cluster_counts = df_cluster['cluster'].value_counts().sort_index()
+    # cluster_counts = df_cluster['cluster'].value_counts().sort_index()
     
     # Map cluster numbers to new names
     df_cluster['cluster_name'] = df_cluster['cluster'].map(cluster_name_map)
