@@ -35,22 +35,21 @@ def show(df):
     
     # Perform clustering
     df_cluster = perform_clustering(df)
-    cluster_counts = df_cluster['cluster'].value_counts().sort_index()
     
     # Map cluster numbers to new names
     df_cluster['cluster_name'] = df_cluster['cluster'].map(cluster_name_map)
     
-    st.subheader("Cluster Distribution")
+    st.subheader("Employee Segments")
     col1, col2, col3 = st.columns(3)
     
-    # Updated cluster descriptions
+    # Updated cluster descriptions without counts
     for i, col in enumerate([col1, col2, col3]):
         cluster_name = CLUSTER_NAMES[i]
-        count = cluster_counts[i]
         color = CLUSTER_COLORS[i]
         
         with col:
-            st.metric(f"Cluster {i}: {cluster_name}", f"{count} employees")
+            # Show only the cluster name without employee count
+            st.subheader(cluster_name)
             
             # Cluster-specific descriptions
             if i == 0:  # The Cautious / Uninformed
@@ -75,7 +74,7 @@ def show(df):
                 """)
                 st.progress(0.55, text="Resource Awareness")
     
-    st.subheader("Cluster Characteristics Comparison")
+    st.subheader("Segment Characteristics Comparison")
     
     # Compare cluster characteristics
     cluster_chars = df_cluster.groupby('cluster_name').agg({
@@ -103,7 +102,7 @@ def show(df):
         ax=ax
     )
     
-    ax.set_title('Mental Health Resource Awareness by Cluster')
+    ax.set_title('Mental Health Resource Awareness by Segment')
     ax.set_xlabel('Resource Feature')
     ax.set_ylabel('Percentage Responded "Yes"')
     ax.legend(title='Employee Segments')
@@ -111,9 +110,9 @@ def show(df):
     
     st.pyplot(fig)
     
-    st.subheader("Recommendations by Cluster")
+    st.subheader("Recommendations by Segment")
     st.markdown("""
-    | Cluster | Recommended Actions |
+    | Segment | Recommended Actions |
     |---------|---------------------|
     | **The Cautious / Uninformed** | Improve communication of benefits, Simplify information access, Regular awareness campaigns |
     | **The Supported** | Maintain supportive environment, Encourage peer advocacy, Continue wellness programs |
