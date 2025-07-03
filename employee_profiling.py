@@ -23,9 +23,13 @@ def show(df):
     st.header("👥 Employee Profiling")
     st.write("Clustering analysis to identify distinct employee segments based on mental health attitudes and behaviors.")
     
-    # Define cluster names and colors
-    CLUSTER_NAMES = ["Engaged & Supported", "At-Risk & Unsupported", "Proactive & Vulnerable"]
-    CLUSTER_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c']
+    # Updated cluster definitions
+    CLUSTER_NAMES = [
+        "The Cautious / Uninformed", 
+        "The Supported", 
+        "The Stigmatized"
+    ]
+    CLUSTER_COLORS = ['#1f77b4', '#2ca02c', '#ff7f0e']  # Adjusted colors for new cluster order
     cluster_name_map = {i: name for i, name in enumerate(CLUSTER_NAMES)}
     color_map = {name: color for name, color in zip(CLUSTER_NAMES, CLUSTER_COLORS)}
     
@@ -33,43 +37,43 @@ def show(df):
     df_cluster = perform_clustering(df)
     cluster_counts = df_cluster['cluster'].value_counts().sort_index()
     
-    # Map cluster numbers to names
+    # Map cluster numbers to new names
     df_cluster['cluster_name'] = df_cluster['cluster'].map(cluster_name_map)
     
     st.subheader("Cluster Distribution")
     col1, col2, col3 = st.columns(3)
     
+    # Updated cluster descriptions
     for i, col in enumerate([col1, col2, col3]):
         cluster_name = CLUSTER_NAMES[i]
         count = cluster_counts[i]
         color = CLUSTER_COLORS[i]
         
         with col:
-            st.metric(f"Cluster {i}: {cluster_name}", f"{count} employees", 
-                     help="Employees aware of and utilizing mental health resources")
+            st.metric(f"Cluster {i}: {cluster_name}", f"{count} employees")
             
             # Cluster-specific descriptions
-            if i == 0:
+            if i == 0:  # The Cautious / Uninformed
                 st.markdown("""
-                - High awareness of benefits
-                - Comfortable discussing with managers
-                - Moderate treatment seeking
+                - Frequent "Don't know" responses
+                - Low awareness of benefits/resources
+                - Uncertainty about care options
                 """)
-                st.progress(0.8, text="Resource Utilization")
-            elif i == 1:
+                st.progress(0.35, text="Resource Awareness")
+            elif i == 1:  # The Supported
                 st.markdown("""
-                - Low benefit awareness
-                - Anonymity concerns
-                - High work interference
+                - Positive view of workplace support
+                - Aware of benefits/wellness programs
+                - Comfortable discussing with supervisors
                 """)
-                st.progress(0.35, text="Resource Utilization")
-            else:
+                st.progress(0.85, text="Resource Awareness")
+            else:  # The Stigmatized
                 st.markdown("""
-                - Family history of mental illness
-                - High treatment seeking
-                - Concerned about consequences
+                - Fear of negative repercussions
+                - Uncomfortable discussing with coworkers
+                - Expect mental health consequences
                 """)
-                st.progress(0.65, text="Resource Utilization")
+                st.progress(0.55, text="Resource Awareness")
     
     st.subheader("Cluster Characteristics Comparison")
     
@@ -105,18 +109,13 @@ def show(df):
     ax.legend(title='Employee Segments')
     plt.xticks(rotation=45)
     
-    # Apply the exact colors to legend handles
-    handles, labels = ax.get_legend_handles_labels()
-    for i, handle in enumerate(handles):
-        handle.set_color(CLUSTER_COLORS[i])
-    
     st.pyplot(fig)
     
     st.subheader("Recommendations by Cluster")
     st.markdown("""
     | Cluster | Recommended Actions |
     |---------|---------------------|
-    | **Engaged & Supported** | Maintain current programs, focus on retention, peer support networks |
-    | **At-Risk & Unsupported** | Increase resource awareness, improve anonymity guarantees, manager training |
-    | **Proactive & Vulnerable** | Provide specialized support, reduce stigma, flexible work arrangements |
+    | **The Cautious / Uninformed** | Improve communication of benefits, Simplify information access, Regular awareness campaigns |
+    | **The Supported** | Maintain supportive environment, Encourage peer advocacy, Continue wellness programs |
+    | **The Stigmatized** | Anti-stigma campaigns, Safe reporting channels, Leadership role modeling, Psychological safety training |
     """)
